@@ -3,8 +3,6 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from pandas.core.frame import DataFrame
-from matplotlib import cm
 from IPython import embed
 
 dau = pd.read_csv('section3-dau.csv')
