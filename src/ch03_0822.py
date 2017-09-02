@@ -10,9 +10,9 @@ dau = pd.read_csv('section3-dau.csv')
 dpu = pd.read_csv('section3-dpu.csv')
 install = pd.read_csv('section3-install.csv')
 
-# dauとdpuをinner joinする
+# dauとdpuをinner-joinする
 dau_install = pd.merge(dau, install, on=['user_id', 'app_name'])
-# dau_installとdpuをouter joinする
+# dau_installとdpuをouter-joinする
 dau_install_payment = pd.merge(dau_install, dpu, on=['log_date', 'app_name', 'user_id'], how='outer')
 
 # payment列のNaNを0に変換する
