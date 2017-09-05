@@ -2,8 +2,11 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import matplotlib.pyplot as plt
 from IPython import embed
+
+sns.set(color_codes=True)
 
 # 各CSVファイルを読み込む
 dau = pd.read_csv('section3-dau.csv')
@@ -40,13 +43,15 @@ crosstab.plot.bar(stacked=True, ax=ax)
 # ヒストグラム様にサブグラフを生成する
 _fig, ax = plt.subplots()
 
-# log_monthでグループ化
-groups = dau_install_payment.groupby(['log_month'])
+# payment > 0でuser_typeがinstallの行をlog_monthでグループ化
+groups = dau_install_payment[dau_install_payment['payment'] > 0][dau_install_payment['user_type'] == 'install'].groupby('log_month')
 
-# 各グループごとにpaymentが0より大きいものをヒストグラムとして描画する
-for i, (title, group) in enumerate(groups):
-    group = group[group['payment'] > 0]
-    group['payment'].plot.hist(alpha=0.5, ax=ax)
+# 各グループごとにヒストグラムとして描画する
+binwidth = 2000
+for title, group in groups:
+    payments = group.groupby('user_id')['payment'].sum()
+    payments.plot.hist(alpha=0.5, ax=ax,
+                       bins=np.arange(min(payments), max(payments) + binwidth,  binwidth))
 
 # グラフを表示する
 plt.show()
