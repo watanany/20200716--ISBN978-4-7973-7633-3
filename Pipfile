@@ -1,23 +1,18 @@
 [[source]]
-
 url = "https://pypi.python.org/simple"
 verify_ssl = true
 name = "pypi"
 
-
 [packages]
-
 numpy = "*"
 pandas = "*"
 seaborn = "*"
 matplotlib = "*"
-
+sklearn = "*"
 
 [dev-packages]
-
 ipython = "*"
-
+"flake8" = "*"
 
 [requires]
-
 python_version = "3.6"
