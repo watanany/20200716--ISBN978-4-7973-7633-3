@@ -3,35 +3,43 @@
 # データを読みこむための関数の作成
 library(plyr)
 library(foreach)
+
 readTsvDates <- function(base.dir, app.name, date.from, date.to) {
-date.from <- as.Date(date.from)
-date.to <- as.Date(date.to)
-dates <- seq.Date(date.from, date.to, by = "day")
-x <- ldply(foreach(day = dates, combine = rbind) %do% {
-read.csv(sprintf("%s/%s/%s/data.tsv", base.dir, app.name, day),
-header = T,
-sep = "\t", stringsAsFactors = F)
-})
-x
+  date.from <- as.Date(date.from)
+  date.to <- as.Date(date.to)
+  dates <- seq.Date(date.from, date.to, by = "day")
+  x <- ldply(foreach(day = dates, combine = rbind) %do% {
+    read.csv(sprintf("%s/%s/%s/data.tsv", base.dir, app.name, day),
+      header = T,
+      sep = "\t", stringsAsFactors = F
+    )
+  })
+  x
 }
 
 # DAUを読みこむ関数
 readDau <- function(app.name, date.from, date.to = date.from) {
-data <- readTsvDates("sample-data/section8/daily/dau", app.name,
-date.from, date.to)
-data
+  data <- readTsvDates(
+    "sample-data/section8/daily/dau", app.name,
+    date.from, date.to
+  )
+  data
 }
 # DPUを読みこむ関数
 readDpu <- function(app.name, date.from, date.to = date.from) {
-data <- readTsvDates("sample-data/section8/daily/dpu", app.name,
-date.from, date.to)
-data
+  data <- readTsvDates(
+    "sample-data/section8/daily/dpu", app.name,
+    date.from, date.to
+  )
+  data
 }
 # 行動データを読みこむ関数
 readActionDaily <- function(app.name, date.from, date.to = date.from) {
-data <- readTsvDates("sample-data/section8/daily/action", app.name,
-date.from, date.to)
-data
+  data <- readTsvDates(
+    "sample-data/section8/daily/action", app.name,
+    date.from, date.to
+  )
+  data
 }
 
 # データの読みこみ
@@ -50,7 +58,8 @@ head(user.action)
 
 # 課金データのマージ
 dau2 <- merge(dau, dpu[, c("log_date", "user_id", "payment"), ],
-by = c("log_date", "user_id"), all.x = T)
+  by = c("log_date", "user_id"), all.x = T
+)
 # 課金フラグを付ける
 dau2$is.payment <- ifelse(is.na(dau2$payment), 0, 1)
 head(dau2)
@@ -63,9 +72,11 @@ head(dau2)
 # 月のカラムを作成
 dau2$log_month <- substr(dau2$log_date, 1, 7)
 # 月次集計
-mau <- ddply(dau2, .(log_month, user_id), summarize, payment
-= sum(payment),
-access_days = length(log_date))
+mau <- ddply(dau2, .(log_month, user_id), summarize,
+  payment
+  = sum(payment),
+  access_days = length(log_date)
+)
 head(mau)
 
 # ランキング帯の決定
@@ -78,19 +89,25 @@ user.action2 <- ykmeans(user.action, "A47", "A47", 3)
 table(user.action2$cluster)
 
 # ランキングポイントの分布
-ggplot(arrange(user.action2, desc(A47)),
-aes(x = 1:length(user_id), y = A47,
-col = as.factor(cluster), shape = as.factor(cluster))) +
-geom_line() +
-xlab("user") +
-ylab("Ranking point") +
-scale_y_continuous(label = comma) +
-ggtitle("Ranking Point") +
-theme(legend.position = "none")
+ggplot(
+  arrange(user.action2, desc(A47)),
+  aes(
+    x = 1:length(user_id), y = A47,
+    col = as.factor(cluster), shape = as.factor(cluster)
+  )
+) +
+  geom_line() +
+  xlab("user") +
+  ylab("Ranking point") +
+  scale_y_continuous(label = comma) +
+  ggtitle("Ranking Point") +
+  theme(legend.position = "none")
 
 # ランキング上位に絞る
-user.action.h <- user.action2[user.action2$cluster >= 2,
-names(user.action)]
+user.action.h <- user.action2[
+  user.action2$cluster >= 2,
+  names(user.action)
+]
 
 # 主成分分析の実行
 
@@ -102,11 +119,11 @@ row.names(user.action.f) <- user.action.h$user_id
 head(user.action.f)
 # 情報量がゼロに近い変数の削除
 nzv <- nearZeroVar(user.action.f)
-user.action.f.filterd <- user.action.f[,-nzv]
+user.action.f.filterd <- user.action.f[, -nzv]
 # 変数間の相関が高いものを削除
 user.action.cor <- cor(user.action.f.filterd)
-highly.cor.f <- findCorrelation(user.action.cor,cutoff=.7)
-user.action.f.filterd <- user.action.f.filterd[,-highly.cor.f]
+highly.cor.f <- findCorrelation(user.action.cor, cutoff = .7)
+user.action.f.filterd <- user.action.f.filterd[, -highly.cor.f]
 # 主成分分析の実行
 # pca
 user.action.pca.base <- prcomp(user.action.f.filterd, scale = T)
@@ -118,28 +135,34 @@ keys <- names(user.action.pca)
 user.action.km <- ykmeans(user.action.pca, keys, "PC1", 3:6)
 table(user.action.km$cluster)
 
-ggplot(user.action.km,
-aes(x=PC1,y=PC2,col=as.factor(cluster), shape=as.factor(cluster))) +
-geom_point()
+ggplot(
+  user.action.km,
+  aes(x = PC1, y = PC2, col = as.factor(cluster), shape = as.factor(cluster))
+) +
+  geom_point()
 
 # クラスタごとに平均を算出する
 user.action.f.filterd$cluster <- user.action.km$cluster
 user.action.f.center <-
-ldply(lapply(sort(unique(user.action.f.filterd$cluster)),
-function(i) {
-x <- user.action.f.filterd[user.action.f.filterd$cluster == i,
--ncol(user.action.f.filterd)]
-apply(x, 2, function(d) mean(d))
-}))
+  ldply(lapply(
+    sort(unique(user.action.f.filterd$cluster)),
+    function(i) {
+      x <- user.action.f.filterd[
+        user.action.f.filterd$cluster == i,
+        -ncol(user.action.f.filterd)
+      ]
+      apply(x, 2, function(d) mean(d))
+    }
+  ))
 
 # レーダーチャート用のデータの作成
 library(fmsb)
 # レーダーチャート用にデータを整形する関数
 createRadarChartDataFrame <- function(df) {
-df <- data.frame(df)
-dfmax <- apply(df, 2, max) + 1
-dfmin <- apply(df, 2, min) - 1
-as.data.frame(rbind(dfmax, dfmin, df))
+  df <- data.frame(df)
+  dfmax <- apply(df, 2, max) + 1
+  dfmin <- apply(df, 2, min) - 1
+  as.data.frame(rbind(dfmax, dfmin, df))
 }
 # 相関が高い変数を除外する
 df <- user.action.f.center[, -(ncol(user.action.f.center) - 1)]
@@ -151,21 +174,21 @@ df.filterd <- df[, -df.highly.cor]
 df.filterd <- createRadarChartDataFrame(scale(df.filterd))
 names(df.filterd)
 
-names(df.filterd) <- c("レベル", "救援回数", "被救援回数", "ボス討伐数",
-"バトル回数", "プレイ回数")
+names(df.filterd) <- c(
+  "レベル", "救援回数", "被救援回数", "ボス討伐数",
+  "バトル回数", "プレイ回数"
+)
 
-# par(family="HiraKakuProN-W3") #日本語が文字化けする場合にはフォントを指定する
+par(family="HiraKakuProN-W3") #日本語が文字化けする場合にはフォントを指定する
 radarchart(df.filterd, seg = 5, plty = 1:5, plwd = 4, pcol = rainbow(5))
 legend("topright", legend = 1:5, col = rainbow(5), lty = 1:5)
 
 # クラスタごとにKPIを算出
 
 user.action.f.filterd$user_id <-
-as.numeric(rownames(user.action.f.filterd))
-user.action.kpi <- merge(user.action.f.filterd, mau,by = "user_id")
+  as.numeric(rownames(user.action.f.filterd))
+user.action.kpi <- merge(user.action.f.filterd, mau, by = "user_id")
 ddply(user.action.kpi, .(cluster), summarize,
-arpu = round(mean(payment)),
-access_days = round(mean(access_days)))
-
-
-
+  arpu = round(mean(payment)),
+  access_days = round(mean(access_days))
+)

@@ -19,11 +19,13 @@ table(dau.user.info[, c("log_month", "generation")])
 
 # セグメント分析（性別×年代で集計）
 library(reshape2)
-dcast(dau.user.info, log_month ~ gender + generation, value.var = "user_id",
-length)
+dcast(dau.user.info, log_month ~ gender + generation,
+  value.var = "user_id",
+  length
+)
 
 # セグメント分析（デバイスごとで集計）
-table(dau.user.info[,c("log_month","device_type")])
+table(dau.user.info[, c("log_month", "device_type")])
 
 # セグメント分析の結果を可視化する
 
@@ -35,7 +37,7 @@ dau.user.info.device.summary$log_date <- as.Date(dau.user.info.device.summary$lo
 library(ggplot2)
 library(scales)
 limits <- c(0, max(dau.user.info.device.summary$dau))
-ggplot(dau.user.info.device.summary, aes(x=log_date, y=dau, col=device_type, lty=device_type, shape=device_type)) +
-geom_line(lwd=1) +
-geom_point(size=4) +
-scale_y_continuous(label=comma, limits=limits)
+ggplot(dau.user.info.device.summary, aes(x = log_date, y = dau, col = device_type, lty = device_type, shape = device_type)) +
+  geom_line(lwd = 1) +
+  geom_point(size = 4) +
+  scale_y_continuous(label = comma, limits = limits)
