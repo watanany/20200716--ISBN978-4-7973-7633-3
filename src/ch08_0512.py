@@ -1,0 +1,97 @@
+import IPython as ipy
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import date
+from itertools import product
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from scipy import stats
+
+def read_tsv_dates(base_dir, app_name, date_from, date_to):
+    date_range = pd.date_range(date_from, date_to).strftime('%Y-%m-%d')
+    paths = [os.path.join(base_dir, app_name, d, 'data.tsv') for d in date_range]
+    data_frames = [pd.read_csv(p, sep='\t') for p in paths]
+    return pd.concat(data_frames, ignore_index=True)
+
+def read_dau(app_name, date_from, date_to):
+    return read_tsv_dates('./sample-data/section8/daily/dau', app_name, date_from, date_to)
+
+def read_dpu(app_name, date_from, date_to):
+    return read_tsv_dates('./sample-data/section8/daily/dpu', app_name, date_from, date_to)
+
+def read_action_daily(app_name, date_from, date_to):
+    return read_tsv_dates('./sample-data/section8/daily/action', app_name, date_from, date_to)
+
+def get_mau():
+    date_from, date_to = date(2013, 5, 1), date(2013, 10, 31)
+    dau = read_dau('game-01', date_from, date_to)
+    dpu = read_dpu('game-01', date_from, date_to)
+    dau = pd.merge(dau, dpu[['log_date', 'user_id', 'payment']], on=['log_date', 'user_id'], how='outer')
+    dau['is_payment'] = np.where(dau['payment'].isnull(), False, True)
+    dau['payment'] = dau['payment'].fillna(0)
+    dau['log_month'] = pd.to_datetime(dau['log_date']).apply(lambda dt: dt.strftime('%Y-%m'))
+    mau = pd.crosstab(dau['log_month'], dau['user_id'], aggfunc=sum, values=dau['payment'])
+    return mau
+
+def remove_near_zero_var(df, freqcut=(95 / 5), uniqcut=10):
+    N = pd.DataFrame(StandardScaler().fit_transform(df.values), columns=df.columns)
+    M = pd.DataFrame(
+        [[mode_rate(N[c]), uniq_rate(N[c]) * 100, N[c].std() == 0] for c in N.columns],
+        index=N.columns, columns=['freq_ratio', 'percent_unique', 'zero_var']
+    )
+    M.loc[:, 'nzv'] = M['zero_var'] | ((M['freq_ratio'] > freqcut) & (M['percent_unique'] < uniqcut))
+    return df.drop(M[M['nzv'] == True].index, axis=1)
+
+def uniq_rate(series):
+    return len(set(series)) / len(series)
+
+def mode_rate(series):
+    a = series.values
+    mode_fst = stats.mode(a)
+    mode_snd = stats.mode(a[a != mode_fst.mode[0]])
+    try:
+        return mode_fst.count[0] / mode_snd.count[0]
+    except IndexError:
+        return 0
+
+def remove_high_correlation_var(df, cutoff):
+    # this function is not compatible for findCorrelation in R.
+    corr = df.corr().abs()
+    tri = corr.where(np.triu(np.ones(corr.shape), k=1).astype(np.bool))
+    dropped_columns = [c for c in tri.columns if any(tri[c] >= cutoff)]
+    return df.drop(dropped_columns, axis=1)
+
+
+def main():
+    sns.set(style="ticks")
+
+    action = read_action_daily('game-01', date(2013, 10, 31), date(2013, 10, 31))
+    kmeans0 = KMeans(n_clusters=3).fit(action['A47'].values.reshape(-1, 1))
+
+    group = pd.DataFrame(kmeans0.labels_, columns=['label']).groupby('label')
+    print(group['label'].count())
+    # plt.plot(range(len(action['user_id'])), sorted(action['A48'], reverse=True))
+    # plt.show()
+
+    action = a0 = action.drop(['log_date', 'app_name', 'user_id', 'A1'], axis=1)
+    action = a1 = action[kmeans0.labels_ >= 1]
+    action = a2 = remove_near_zero_var(action)
+    action = a3 = remove_high_correlation_var(action, cutoff=0.7)
+
+    X = StandardScaler().fit_transform(action.values)
+    action = pd.DataFrame(X, columns=action.columns)
+    pc = PCA(n_components='mle', svd_solver='full').fit_transform(X)
+
+    kmeans = KMeans(n_clusters=5).fit(pc[:, 0].reshape(-1, 1))
+    action['cluster'] = kmeans.labels_
+    center = action.groupby('cluster').apply(lambda g: g.mean()).drop('cluster', axis=1)
+
+    ipy.embed()
+
+
+if __name__ == '__main__':
+    main()
