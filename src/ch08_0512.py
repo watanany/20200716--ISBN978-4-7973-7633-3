@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import date
 from itertools import product
+from collections import OrderedDict
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
@@ -58,13 +59,36 @@ def mode_rate(series):
     except IndexError:
         return 0
 
-def remove_high_correlation_var(df, cutoff):
-    # this function is not compatible for findCorrelation in R.
+def remove_high_correlation_var(df, cutoff=0.90):
     corr = df.corr().abs()
-    tri = corr.where(np.triu(np.ones(corr.shape), k=1).astype(np.bool))
-    dropped_columns = [c for c in tri.columns if any(tri[c] >= cutoff)]
-    return df.drop(dropped_columns, axis=1)
+    tmp = corr.copy()
+    np.fill_diagonal(tmp.values, np.nan)
+    order = tmp.mean(skipna=True).sort_values(ascending=False).index
 
+    corr = corr.loc[order, order]
+    np.fill_diagonal(corr.values, np.nan)
+
+    drop_flag = OrderedDict((col, False) for col in corr.columns)
+
+    for i, idx in enumerate(corr.index[:-1]):
+        if not any(corr[~np.isnan(corr)] > cutoff):
+            break
+        if drop_flag[idx]:
+            continue
+        for j, col in enumerate(corr.columns[(i + 1):-1]):
+            if not all([drop_flag[idx], drop_flag[col]]) and corr.loc[idx, col] > cutoff:
+                if np.nanmean(corr[idx]) > np.nanmean(corr.drop(col)):
+                    drop_flag[idx] = True
+                    corr.loc[idx, :] = np.nan
+                    corr.loc[:, idx] = np.nan
+                else:
+                    drop_flag[col] = True
+                    corr.loc[col, :] = np.nan
+                    corr.loc[:, col] = np.nan
+
+    dropped_columns = [col for col, flg in drop_flag.items() if flg]
+
+    return df.drop(dropped_columns, axis=1)
 
 def main():
     sns.set(style="ticks")
@@ -82,16 +106,19 @@ def main():
     action = a2 = remove_near_zero_var(action)
     action = a3 = remove_high_correlation_var(action, cutoff=0.7)
 
-    X = StandardScaler().fit_transform(action.values)
-    action = pd.DataFrame(X, columns=action.columns)
+    X = np.array([StandardScaler().fit_transform(feature.reshape(-1, 1)).flatten()
+                  for feature in action.values.T]).T
     pc = PCA(n_components='mle', svd_solver='full').fit_transform(X)
 
     kmeans = KMeans(n_clusters=5).fit(pc[:, 0].reshape(-1, 1))
     action['cluster'] = kmeans.labels_
-    center = action.groupby('cluster').apply(lambda g: g.mean()).drop('cluster', axis=1)
-
+    center = action.groupby('cluster').apply(lambda g: g.mean()).drop(['cluster'], axis=1)
+    center = remove_high_correlation_var(center)
+    X = np.array([StandardScaler().fit_transform(feature.reshape(-1, 1)).flatten()
+                  for feature in center.values.T]).T
+    center = pd.DataFrame(X, columns=center.columns)
+    center.to_csv('./section8-center-mime.csv', index=False)
     ipy.embed()
-
 
 if __name__ == '__main__':
     main()
