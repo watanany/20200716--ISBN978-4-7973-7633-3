@@ -60,12 +60,13 @@ def mode_rate(series):
         return 0
 
 def remove_high_correlation_var(df, cutoff=0.90):
-    corr = df.corr().abs()
-    tmp = corr.copy()
-    np.fill_diagonal(tmp.values, np.nan)
-    order = tmp.mean(skipna=True).sort_values(ascending=False).index
+    def sort_by_mean(corr):
+        copy = corr.copy()
+        np.fill_diagonal(copy.values, np.nan)
+        order = copy.mean(skipna=True).sort_values(ascending=False).index
+        return corr.loc[order, order]
 
-    corr = corr.loc[order, order]
+    corr = sort_by_mean(df.corr().abs())
     np.fill_diagonal(corr.values, np.nan)
 
     drop_flag = OrderedDict((col, False) for col in corr.columns)
@@ -87,7 +88,6 @@ def remove_high_correlation_var(df, cutoff=0.90):
                     corr.loc[:, col] = np.nan
 
     dropped_columns = [col for col, flg in drop_flag.items() if flg]
-
     return df.drop(dropped_columns, axis=1)
 
 def main():
